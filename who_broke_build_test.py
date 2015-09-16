@@ -6,6 +6,7 @@ import unittest
 from who_broke_build import (
     get_responsible_user,
     jenkins_wait_for_event,
+    put_breaker_to_firebase,
     remove_html_tags,
     wait_for_event,
     yell_at
@@ -25,6 +26,8 @@ class WhoBrokeBuildTest(unittest.TestCase):
             'zkan': 'zkan'
         }
         settings.SLACK_TOKEN = 'slack-token'
+        settings.FIREBASE_STORAGE_URL = ''
+        settings.FIREBASE_OBJECT_URL = ''
 
     def test_wait_for_event_should_just_return_true(self):
         self.assertTrue(wait_for_event())
@@ -393,6 +396,85 @@ class WhoBrokeBuildTest(unittest.TestCase):
 
         expected = 'Started by user Kan Ouivirach'
         self.assertEqual(result, expected)
+
+    @patch('who_broke_build.firebase.FirebaseApplication')
+    def test_create_breaker_on_firebase_if_it_does_not_exist(
+        self,
+        mock_firebase
+    ):
+        settings.FIREBASE_STORAGE_URL = 'https://whobrokebuild.firebaseio.com'
+        settings.FIREBASE_OBJECT_URL = '/breakers'
+
+        mock_firebase.return_value.get.return_value = None
+
+        put_breaker_to_firebase('zkan')
+
+        mock_firebase.assert_called_once_with(
+            settings.FIREBASE_STORAGE_URL,
+            None
+        )
+
+        mock_firebase.return_value.get.assert_called_once_with(
+            '/breakers',
+            'zkan'
+        )
+
+        mock_firebase.return_value.put.assert_called_once_with(
+            '/breakers',
+            'zkan',
+            1
+        )
+
+    @patch('who_broke_build.firebase.FirebaseApplication')
+    def test_update_breaker_on_firebase_if_it_exists(self, mock_firebase):
+        settings.FIREBASE_STORAGE_URL = 'https://whobrokebuild.firebaseio.com'
+        settings.FIREBASE_OBJECT_URL = '/breakers'
+
+        mock_firebase.return_value.get.return_value = 5
+
+        put_breaker_to_firebase('zkan')
+
+        mock_firebase.assert_called_once_with(
+            settings.FIREBASE_STORAGE_URL,
+            None
+        )
+
+        mock_firebase.return_value.get.assert_called_once_with(
+            '/breakers',
+            'zkan'
+        )
+
+        mock_firebase.return_value.put.assert_called_once_with(
+            '/breakers',
+            'zkan',
+            6
+        )
+
+    @patch('who_broke_build.put_breaker_to_firebase')
+    @patch('who_broke_build.subprocess.call')
+    def test_yell_at_should_call_put_breaker_to_firebase_if_it_is_enabled(
+        self,
+        mock,
+        mock_put_breaker
+    ):
+        settings.FIREBASE_STORAGE_URL = 'https://whobrokebuild.firebaseio.com'
+
+        yell_at('zkan')
+
+        mock_put_breaker.assert_called_once_with('zkan')
+
+    @patch('who_broke_build.put_breaker_to_firebase')
+    @patch('who_broke_build.subprocess.call')
+    def test_yell_at_should_call_put_breaker_to_firebase_if_it_is_enabled(
+        self,
+        mock,
+        mock_put_breaker
+    ):
+        settings.FIREBASE_STORAGE_URL = ''
+
+        yell_at('zkan')
+
+        self.assertEqual(mock_put_breaker.call_count, 0)
 
 
 if __name__ == '__main__':

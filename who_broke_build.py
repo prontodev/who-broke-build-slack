@@ -4,7 +4,27 @@ import requests
 import socket
 import subprocess
 
+from firebase import firebase
+
 import settings
+
+
+def put_breaker_to_firebase(name):
+    firebase_app = firebase.FirebaseApplication(
+        settings.FIREBASE_STORAGE_URL,
+        None
+    )
+    result = firebase_app.get(settings.FIREBASE_OBJECT_URL, name)
+    if result is None:
+        result = firebase_app.put(settings.FIREBASE_OBJECT_URL, name, 1)
+    else:
+        result = firebase_app.put(
+            settings.FIREBASE_OBJECT_URL,
+            name,
+            result + 1
+        )
+
+    return result
 
 
 # http://love-python.blogspot.com/2008/07/strip-html-tags-using-python.html
@@ -18,6 +38,9 @@ def yell_at(name):
     command += 'slacker -c main -t %s -i :bear:' % settings.SLACK_TOKEN
 
     subprocess.call(command, shell=True)
+
+    if settings.FIREBASE_STORAGE_URL:
+        put_breaker_to_firebase(name)
 
 
 def get_responsible_user(full_url):
